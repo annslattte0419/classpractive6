@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>政治獻金查詢｜Money & Mandate</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="回到首頁">
+      <span class="brand-mark">M</span>
+      <span>Money & Mandate</span>
+    </a>
+    <nav>
+      <a href="#search">查詢</a>
+      <a href="#examples">範例</a>
+      <a href="#picks">精選案例</a>
+      <a href="#results">結果</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">POLITICAL DONATION OBSERVATORY</p>
+        <h1>政治獻金，不只是數字。<br />它是權力如何流動的痕跡。</h1>
+        <p class="hero-text">選舉資金揭露了候選人與個人、企業、政黨、人民團體之間的關係。這個查詢網站讓你用姓名、政黨或選區快速找到候選人的收入結構，理解誰獲得最多資源、錢從哪裡來，以及資金與選舉結果之間可能存在的訊號。</p>
+        <div class="hero-actions">
+          <a class="btn primary" href="#search">開始查詢</a>
+          <a class="btn ghost" href="#picks">看編輯精選</a>
+        </div>
+      </div>
+      <aside class="hero-card" aria-label="重點摘要">
+        <span class="card-label">DATA FILE</span>
+        <strong>A05_basic_all.csv</strong>
+        <p>資料會直接從同一個資料夾讀取，不需要後端伺服器。</p>
+        <div class="gold-line"></div>
+        <p class="small">搜尋姓名、政黨、地區，並可依總收入、個人捐贈、企業捐贈、得票數排序。</p>
+      </aside>
+    </section>
+
+    <section id="search" class="search-panel">
+      <div>
+        <p class="eyebrow">SEARCH ENTRY</p>
+        <h2>輸入你想追蹤的候選人、政黨或選區</h2>
+      </div>
+      <form id="searchForm" class="search-box">
+        <input id="queryInput" type="search" placeholder="例如：柯建銘、民主進步黨、臺北市" autocomplete="off" />
+        <button class="btn primary" type="submit">查詢政治獻金</button>
+      </form>
+    </section>
+
+    <section id="examples" class="section-block">
+      <div class="section-title">
+        <p class="eyebrow">EXAMPLE QUERIES</p>
+        <h2>不知道怎麼查？從這些開始</h2>
+      </div>
+      <div class="chips" id="exampleChips">
+        <button data-query="民主進步黨">民主進步黨</button>
+        <button data-query="中國國民黨">中國國民黨</button>
+        <button data-query="臺北市">臺北市</button>
+        <button data-query="高雄市">高雄市</button>
+        <button data-query="柯建銘">柯建銘</button>
+        <button data-query="無黨籍">無黨籍</button>
+      </div>
+    </section>
+
+    <section id="picks" class="section-block editor-picks">
+      <div class="section-title">
+        <p class="eyebrow">EDITOR’S PICKS</p>
+        <h2>編輯精選案例</h2>
+      </div>
+      <div class="pick-grid" id="editorPicks">
+        <article class="pick-card skeleton"><span></span><h3>資料載入中</h3><p>正在建立案例摘要。</p></article>
+        <article class="pick-card skeleton"><span></span><h3>資料載入中</h3><p>正在建立案例摘要。</p></article>
+        <article class="pick-card skeleton"><span></span><h3>資料載入中</h3><p>正在建立案例摘要。</p></article>
+      </div>
+    </section>
+
+    <section id="results" class="results-section">
+      <div class="results-head">
+        <div>
+          <p class="eyebrow">RESULTS LIST</p>
+          <h2>查詢結果</h2>
+        </div>
+        <div class="tools">
+          <label>
+            排序
+            <select id="sortSelect">
+              <option value="totalDesc">總收入高到低</option>
+              <option value="corpDesc">企業捐贈高到低</option>
+              <option value="personalDesc">個人捐贈高到低</option>
+              <option value="votesDesc">得票數高到低</option>
+              <option value="nameAsc">姓名 A-Z</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="summary-grid" id="summaryGrid">
+        <div class="summary-card"><span>候選人筆數</span><strong>-</strong></div>
+        <div class="summary-card"><span>總收入合計</span><strong>-</strong></div>
+        <div class="summary-card"><span>企業捐贈合計</span><strong>-</strong></div>
+        <div class="summary-card"><span>平均得票率</span><strong>-</strong></div>
+      </div>
+
+      <div id="status" class="status">正在讀取 A05_basic_all.csv...</div>
+      <div id="resultList" class="result-list"></div>
+      <button id="loadMoreBtn" class="btn ghost load-more" type="button">載入更多</button>
+    </section>
+  </main>
+
+  <footer>
+    <p>Money & Mandate — A lightweight political donation search interface.</p>
+  </footer>
+
+  <script>
+    const CSV_FILE = 'A05_basic_all.csv';
+    const PAGE_SIZE = 12;
+    let rows = [];
+    let filtered = [];
+    let visibleCount = PAGE_SIZE;
+
+    const $ = (selector) => document.querySelector(selector);
+    const resultList = $('#resultList');
+    const statusEl = $('#status');
+    const loadMoreBtn = $('#loadMoreBtn');
+
+    function parseCSV(text) {
+      const records = [];
+      let row = [], field = '', inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i], next = text[i + 1];
+        if (c === '"') {
+          if (inQuotes && next === '"') { field += '"'; i++; }
+          else inQuotes = !inQuotes;
+        } else if (c === ',' && !inQuotes) {
+          row.push(field); field = '';
+        } else if ((c === '\n' || c === '\r') && !inQuotes) {
+          if (c === '\r' && next === '\n') i++;
+          row.push(field);
+          if (row.some(cell => cell.trim() !== '')) records.push(row);
+          row = []; field = '';
+        } else field += c;
+      }
+      if (field || row.length) { row.push(field); records.push(row); }
+      const headers = records.shift().map(h => h.trim());
+      return records.map(r => Object.fromEntries(headers.map((h, i) => [h, (r[i] || '').trim()])));
+    }
+
+    function moneyToNumber(value) {
+      if (value === undefined || value === null) return 0;
+      return Number(String(value).replace(/[$,，%\s]/g, '')) || 0;
+    }
+
+    function percentToNumber(value) {
+      return Number(String(value || '').replace('%', '')) || 0;
+    }
+
+    function formatMoney(num) {
+      return 'NT$' + Math.round(num).toLocaleString('zh-TW');
+    }
+
+    function formatPercent(num) {
+      return `${num.toFixed(2)}%`;
+    }
+
+    function searchable(row) {
+      return [row['姓名'], row['推薦政黨'], row['地區'], row['委員會'], row['是否現任'], row['性別']].join(' ').toLowerCase();
+    }
+
+    function applySearch(query = $('#queryInput').value) {
+      const q = query.trim().toLowerCase();
+      filtered = q ? rows.filter(row => searchable(row).includes(q)) : [...rows];
+      visibleCount = PAGE_SIZE;
+      sortRows();
+      renderAll();
+      location.hash = 'results';
+    }
+
+    function sortRows() {
+      const sort = $('#sortSelect').value;
+      const map = {
+        totalDesc: (a, b) => moneyToNumber(b['總收入']) - moneyToNumber(a['總收入']),
+        corpDesc: (a, b) => moneyToNumber(b['營利事業捐贈收入']) - moneyToNumber(a['營利事業捐贈收入']),
+        personalDesc: (a, b) => moneyToNumber(b['個人捐贈收入']) - moneyToNumber(a['個人捐贈收入']),
+        votesDesc: (a, b) => moneyToNumber(b['得票數']) - moneyToNumber(a['得票數']),
+        nameAsc: (a, b) => String(a['姓名']).localeCompare(String(b['姓名']), 'zh-Hant')
+      };
+      filtered.sort(map[sort]);
+    }
+
+    function renderSummary() {
+      const count = filtered.length;
+      const total = filtered.reduce((sum, r) => sum + moneyToNumber(r['總收入']), 0);
+      const corp = filtered.reduce((sum, r) => sum + moneyToNumber(r['營利事業捐贈收入']), 0);
+      const avgVote = count ? filtered.reduce((sum, r) => sum + percentToNumber(r['得票率']), 0) / count : 0;
+      $('#summaryGrid').innerHTML = `
+        <div class="summary-card"><span>候選人筆數</span><strong>${count.toLocaleString('zh-TW')}</strong></div>
+        <div class="summary-card"><span>總收入合計</span><strong>${formatMoney(total)}</strong></div>
+        <div class="summary-card"><span>企業捐贈合計</span><strong>${formatMoney(corp)}</strong></div>
+        <div class="summary-card"><span>平均得票率</span><strong>${formatPercent(avgVote)}</strong></div>`;
+    }
+
+    function renderResults() {
+      const shown = filtered.slice(0, visibleCount);
+      resultList.innerHTML = shown.map((r, index) => {
+        const total = moneyToNumber(r['總收入']);
+        const personal = moneyToNumber(r['個人捐贈收入']);
+        const corp = moneyToNumber(r['營利事業捐贈收入']);
+        const corpPct = total ? Math.round((corp / total) * 100) : 0;
+        const personalPct = total ? Math.round((personal / total) * 100) : 0;
+        return `
+          <article class="result-card">
+            <div class="rank">${index + 1}</div>
+            <div class="candidate-main">
+              <div class="candidate-title">
+                <h3>${r['姓名'] || '未命名'}</h3>
+                <span>${r['推薦政黨'] || '未標示政黨'}</span>
+              </div>
+              <p class="meta">${r['地區'] || '未標示地區'} · ${r['委員會'] || '委員會未列'} · ${r['是否現任'] === '是' ? '現任' : '非現任/未標示'} ${r['當選註記'] === '*' ? '· 當選' : ''}</p>
+              <div class="bars">
+                <div><span>個人捐贈 ${personalPct}%</span><i style="width:${Math.min(personalPct,100)}%"></i></div>
+                <div><span>企業捐贈 ${corpPct}%</span><i style="width:${Math.min(corpPct,100)}%"></i></div>
+              </div>
+            </div>
+            <div class="metrics">
+              <div><span>總收入</span><strong>${formatMoney(total)}</strong></div>
+              <div><span>個人</span><strong>${formatMoney(personal)}</strong></div>
+              <div><span>企業</span><strong>${formatMoney(corp)}</strong></div>
+              <div><span>得票率</span><strong>${r['得票率'] || '-'}</strong></div>
+            </div>
+          </article>`;
+      }).join('');
+      statusEl.textContent = filtered.length ? `顯示 ${shown.length} / ${filtered.length} 筆結果` : '沒有找到符合條件的資料。';
+      loadMoreBtn.style.display = visibleCount < filtered.length ? 'inline-flex' : 'none';
+    }
+
+    function renderPicks() {
+      const topTotal = [...rows].sort((a,b) => moneyToNumber(b['總收入']) - moneyToNumber(a['總收入']))[0];
+      const topCorp = [...rows].sort((a,b) => moneyToNumber(b['營利事業捐贈收入']) - moneyToNumber(a['營利事業捐贈收入']))[0];
+      const topPersonal = [...rows].sort((a,b) => moneyToNumber(b['個人捐贈收入']) - moneyToNumber(a['個人捐贈收入']))[0];
+      const picks = [
+        ['總收入最高', topTotal, '觀察候選人整體資源規模與競選支出壓力。'],
+        ['企業捐贈突出', topCorp, '企業資金占比可作為利益網絡的觀察入口。'],
+        ['個人捐贈突出', topPersonal, '個人小額或大額支持，反映不同形式的政治動員。']
+      ];
+      $('#editorPicks').innerHTML = picks.map(([label, r, desc]) => `
+        <article class="pick-card" data-query="${r['姓名']}">
+          <span>${label}</span>
+          <h3>${r['姓名']}｜${r['推薦政黨'] || '未標示'}</h3>
+          <p>${desc}</p>
+          <strong>${formatMoney(moneyToNumber(r['總收入']))}</strong>
+        </article>`).join('');
+      document.querySelectorAll('.pick-card[data-query]').forEach(card => {
+        card.addEventListener('click', () => {
+          $('#queryInput').value = card.dataset.query;
+          applySearch(card.dataset.query);
+        });
+      });
+    }
+
+    function renderAll() {
+      renderSummary();
+      renderResults();
+    }
+
+    async function init() {
+      try {
+        const response = await fetch(CSV_FILE);
+        if (!response.ok) throw new Error('CSV 無法讀取');
+        rows = parseCSV(await response.text());
+        filtered = [...rows];
+        sortRows();
+        renderPicks();
+        renderAll();
+      } catch (error) {
+        statusEl.innerHTML = '讀取失敗：請確認 <strong>A05_basic_all.csv</strong>、<strong>index.html</strong>、<strong>style.css</strong> 放在同一個資料夾，並用本機伺服器開啟。';
+        loadMoreBtn.style.display = 'none';
+      }
+    }
+
+    $('#searchForm').addEventListener('submit', e => { e.preventDefault(); applySearch(); });
+    $('#sortSelect').addEventListener('change', () => { sortRows(); visibleCount = PAGE_SIZE; renderAll(); });
+    loadMoreBtn.addEventListener('click', () => { visibleCount += PAGE_SIZE; renderResults(); });
+    $('#exampleChips').addEventListener('click', e => {
+      if (e.target.matches('button')) {
+        $('#queryInput').value = e.target.dataset.query;
+        applySearch(e.target.dataset.query);
+      }
+    });
+    window.addEventListener('scroll', () => {
+      if (loadMoreBtn.style.display !== 'none' && window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) {
+        visibleCount += PAGE_SIZE;
+        renderResults();
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
